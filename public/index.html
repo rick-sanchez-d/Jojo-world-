@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4b1fa8">
+<title>JoJoScore – Live Football Scores</title>
+<style>
+:root{--bg:#0f0a1c;--card:#1a1230;--ink:#f1eaff;--mute:#a495c4;--acc:#a371ff;--gold:#ffc83d;--live:#ff4d78;--line:#2d2250}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+header{background:linear-gradient(90deg,#4b1fa8,#8a3ffc);padding:calc(12px + env(safe-area-inset-top)) 14px 12px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5}
+h1{margin:0;font-size:20px;font-style:italic;letter-spacing:2px;cursor:pointer}h1 b{color:var(--gold)}
+nav{display:flex;gap:6px;padding:10px 12px;overflow-x:auto;max-width:720px;margin:0 auto}
+button,input,select{font:inherit;color:var(--ink)}
+nav button,.btn{background:var(--card);border:1px solid var(--line);padding:8px 14px;border-radius:20px;cursor:pointer;white-space:nowrap}
+nav .on,.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+main{max-width:720px;margin:0 auto;padding:0 12px 40px}
+.lg{margin:14px 0 6px;color:var(--gold);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.m{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;cursor:pointer}
+.m:hover{border-color:var(--acc)}.t{font-size:12px;color:var(--mute);text-align:center}.live{color:var(--live);font-weight:700}
+.tm div{display:flex;justify-content:space-between;gap:8px;padding:2px 0}.w{font-weight:700}
+.star{background:none;border:0;font-size:22px;color:var(--mute);cursor:pointer}.star.on{color:var(--gold)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:10px}
+.big{display:flex;justify-content:space-around;align-items:center;text-align:center;font-weight:700;gap:8px}.big .s{font-size:32px;color:var(--acc)}
+.bar{margin:10px 0}.bar .l{display:flex;justify-content:space-between;font-size:13px}
+.tr{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line)}.a{background:var(--acc)}.b{background:var(--gold)}
+.ev{display:grid;grid-template-columns:44px 1fr;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}.ev.r{text-align:right}
+table{width:100%;border-collapse:collapse}td,th{padding:8px 4px;text-align:left;border-bottom:1px solid var(--line)}th{color:var(--mute);font-size:12px}
+input,select{width:100%;padding:10px;margin:6px 0 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.row{display:flex;gap:6px;align-items:center}.row input{margin:6px 0 10px}
+.note{font-size:12px;color:var(--mute)}.err{color:var(--live);font-size:13px}a{color:var(--acc);cursor:pointer}
+.sp{text-align:center;color:var(--mute);padding:30px}
+</style></head><body>
+<header><h1 onclick="go('today')">JOJO<b>SCORE</b></h1><span id="who" class="note" style="color:#fff"></span></header>
+<nav id="nav"></nav><main id="app"></main>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const iso=d=>d.toISOString().slice(0,10);
+let tab="today",date=iso(new Date()),league=39,token=localStorage.jt||"",user=null,favs=[],cur=null,q="",timer=null,FX={};
+const LG=[[39,"Premier League"],[140,"La Liga"],[135,"Serie A"],[78,"Bundesliga"],[61,"Ligue 1"],[2,"Champions League"],[3,"Europa League"]];
+const get=async u=>{try{return await(await fetch(u)).json()}catch{return{errors:{server:"Can't reach the server. Run 'node server.js' and open http://localhost:3000 (not the HTML file directly)."},response:[]}}};
+const post=async(u,b)=>{try{return await(await fetch(u,{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},body:JSON.stringify(b)})).json()}catch{return{error:"Server unreachable"}}};
+const errs=d=>d&&d.errors&&Object.keys(d.errors).length?`<p class="err">${esc(Object.values(d.errors).join(" | "))}</p>`:"";
+const ts=["Matches","Live","Favorites","Standings","Account"],ks=["today","live","favs","table","me"];
+function nav(){$("#nav").innerHTML=ks.map((k,i)=>`<button class="${tab===k&&!cur?"on":""}" onclick="go('${k}')">${ts[i]}</button>`).join("");$("#who").textContent=user||"Guest"}
+function go(t){tab=t;cur=null;draw()}
+const LIVE=["1H","2H","ET","P","BT","LIVE"];
+function when(f){const s=f.fixture.status.short;return LIVE.includes(s)?`<span class="live">${f.fixture.status.elapsed||""}'</span>`:s==="HT"?'<span class="live">HT</span>':s==="NS"?new Date(f.fixture.date).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):esc(s)}
+function row(f){const id=f.fixture.id,s=favs.includes(id),h=f.goals.home>f.goals.away,a=f.goals.away>f.goals.home;
+return `<div class="m" onclick="show(${id})"><div class="t">${when(f)}</div><div class="tm"><div class="${h?"w":""}"><span>${esc(f.teams.home.name)}</span><span>${f.goals.home??"-"}</span></div><div class="${a?"w":""}"><span>${esc(f.teams.away.name)}</span><span>${f.goals.away??"-"}</span></div></div><button class="star ${s?"on":""}" aria-label="Favorite" onclick="event.stopPropagation();fav(${id})">${s?"★":"☆"}</button></div>`}
+function list(r,search){r=(r||[]).filter(f=>{FX[f.fixture.id]=f;const t=(f.teams.home.name+f.teams.away.name+f.league.name).toLowerCase();return !search||!q||t.includes(q.toLowerCase())});
+if(!r.length)return'<p class="sp">No matches found.</p>';let g="",last="";
+r.sort((x,y)=>x.league.name.localeCompare(y.league.name)||new Date(x.fixture.date)-new Date(y.fixture.date)).forEach(f=>{if(f.league.name!==last){g+=`<div class="lg">${esc(f.league.country)} · ${esc(f.league.name)}</div>`;last=f.league.name}g+=row(f)});return g}
+async function fav(id){if(!token){go("me");return}favs=favs.includes(id)?favs.filter(x=>x!==id):[...favs,id];draw(true);post("/api/fav",{favs})}
+function shift(n){const d=new Date(date);d.setDate(d.getDate()+n);date=iso(d);draw()}
+async function show(id){cur=id;nav();clearInterval(timer);const a=$("#app");a.innerHTML='<p class="sp">Loading match…</p>';
+const [s,e]=await Promise.all([get("/api/stats?id="+id),get("/api/events?id="+id)]);const f=FX[id],st=s.response||[],ev=e.response||[];
+const names=[...new Set(st.flatMap(t=>t.statistics.map(x=>x.type)))];
+const v=(t,n)=>parseInt(t?.statistics.find(y=>y.type===n)?.value)||0;
+const want=["Ball Possession","Corner Kicks","Shots on Goal","Total Shots","Fouls","Yellow Cards","Red Cards","Offsides"];
+const bars=want.filter(n=>names.includes(n)).map(n=>{const x=v(st[0],n),y=v(st[1],n),t=(x+y)||1;return `<div class="bar"><div class="l"><span>${x}</span><span>${n}</span><span>${y}</span></div><div class="tr"><div class="a" style="width:${x/t*100}%"></div><div class="b" style="width:${y/t*100}%"></div></div></div>`}).join("");
+const wood=names.some(n=>/wood|post|bar/i.test(n));
+const ic={Goal:"⚽",Card:/Red/.test("")?"🟥":"🟨",subst:"🔁",Var:"📺"};
+const evs=ev.slice(0,40).map(x=>{const home=f&&x.team.id===f.teams.home.id,i=x.type==="Card"?(/Red/.test(x.detail)?"🟥":"🟨"):(ic[x.type]||"•");
+return `<div class="ev ${home?"":"r"}">${home?`<span class="note">${x.time.elapsed}'</span><span>${i} ${esc(x.player.name)}</span>`:`<span style="grid-column:2;grid-row:1">${i} ${esc(x.player.name)}</span><span class="note" style="grid-column:1;grid-row:1">${x.time.elapsed}'</span>`}</div>`}).join("");
+a.innerHTML=`<p><a onclick="go(tab)">← Back</a></p>${f?`<div class="card"><div class="note">${esc(f.league.name)} · ${when(f)}</div><div class="big"><div>${esc(f.teams.home.name)}</div><div class="s">${f.goals.home??"-"} - ${f.goals.away??"-"}</div><div>${esc(f.teams.away.name)}</div></div></div>`:""}
+${errs(s)}<div class="card"><b>Match stats</b>${bars||'<p class="note">Stats are not available yet for this match.</p>'}${wood?"":'<p class="note">Crossbar / woodwork hits are not provided by this data source.</p>'}</div>
+<div class="card"><b>Timeline</b>${evs||'<p class="note">No events yet.</p>'}</div>`}
+async function draw(quiet){nav();if(cur)return;clearInterval(timer);const a=$("#app");
+if(tab==="today"){const bar=`<div class="row"><button class="btn" onclick="shift(-1)">‹</button><input type="date" value="${date}" onchange="date=this.value;draw()"><button class="btn" onclick="shift(1)">›</button></div><input id="sr" placeholder="Search team or league…" value="${esc(q)}" oninput="q=this.value;fill()">`;
+ a.innerHTML=bar+'<div id="ls"><p class="sp">Loading…</p></div>';window.D=await get("/api/fixtures?date="+date);fill()}
+else if(tab==="live"){const load=async()=>{const d=await get("/api/live");if(tab==="live"&&!cur)a.innerHTML=errs(d)+`<p class="note">Auto-refreshes every minute.</p>`+list(d.response)};if(!quiet)a.innerHTML='<p class="sp">Loading…</p>';await load();timer=setInterval(load,60000)}
+else if(tab==="favs"){if(!favs.length){a.innerHTML=`<p class="sp">${token?"Star matches with ☆ to see them here.":"Log in to save favorites."}</p>`;return}
+ if(!quiet)a.innerHTML='<p class="sp">Loading…</p>';const d=await get("/api/fixtures?ids="+favs.slice(-20).join("-"));a.innerHTML=errs(d)+list(d.response)}
+else if(tab==="table"){a.innerHTML=`<select onchange="league=this.value;draw()">${LG.map(l=>`<option value="${l[0]}" ${l[0]==league?"selected":""}>${l[1]}</option>`).join("")}</select><p class="sp">Loading…</p>`;
+ const d=await get("/api/standings?league="+league),t=d.response?.[0]?.league?.standings?.[0]||[];
+ a.innerHTML=a.querySelector("select").outerHTML+errs(d)+`<div class="card"><table><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr>${t.map(r=>`<tr><td>${r.rank}</td><td>${esc(r.team.name)}</td><td>${r.all.played}</td><td>${r.all.win}</td><td>${r.all.draw}</td><td>${r.all.lose}</td><td>${r.goalsDiff}</td><td><b>${r.points}</b></td></tr>`).join("")||'<tr><td colspan="8" class="note">No standings for this competition/season yet.</td></tr>'}</table></div>`}
+else a.innerHTML=user?`<div class="card"><b>${esc(user)}</b><p class="note">${favs.length} starred matches</p><button class="btn" onclick="token='';localStorage.jt='';user=null;favs=[];draw()">Log out</button></div>`:
+`<div class="card"><b>Sign up / Log in</b><input id="un" placeholder="Username" maxlength="20" autocomplete="username"><input id="pw" type="password" placeholder="Password (6+ characters)" autocomplete="current-password"><button class="btn pri" onclick="auth('signup')">Sign up</button> <button class="btn" onclick="auth('login')">Log in</button><p id="er" class="err"></p></div>`}
+function fill(){const el=$("#ls");if(el)el.innerHTML=errs(D)+list(D.response,true)}
+async function auth(k){$("#er").textContent="";const r=await post("/api/"+k,{name:$("#un").value.trim(),pass:$("#pw").value});if(r.token){token=r.token;localStorage.jt=token;user=r.name;favs=r.favs||[];go("today")}else $("#er").textContent=r.error||"Failed"}
+(async()=>{if(token){const m=await post("/api/me",{});if(m.name){user=m.name;favs=m.favs||[]}else{token="";localStorage.jt=""}}draw()})();
+</script></body></html>
